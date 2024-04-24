@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <map>
 #include <algorithm>
+#include <unordered_map>
 
 using power = size_t;
 using coeff = int;
@@ -15,7 +16,8 @@ class polynomial
 
 private: 
 
-    std::vector<std::pair<power, coeff>> terms; // CODE I ADDED
+    //std::vector<std::pair<power, coeff>> terms;
+    std::unordered_map<power, coeff> terms;
 
 public:
     /**
@@ -127,18 +129,16 @@ public:
 
     template<typename Iter>
     polynomial::polynomial(Iter begin, Iter end) {
-        std::map<power, coeff> coeffs;
         for (Iter it = begin; it != end; ++it) {
             coeffs[it->first] += it->second;
         }
-        for (const auto& pair : coeffs) {
-            if (pair.second != 0) {
-                terms.emplace_back(pair.first, pair.second);
-            }
+        for (auto it = terms.begin(); it != terms.end(); ) {
+        if (it->second == 0) {
+            it = terms.erase(it);
+        } else {
+            ++it;
         }
-        std::sort(terms.begin(), terms.end(), [](const auto& a, const auto& b) {
-            return a.first > b.first;
-        });
+    }
     }
 
     polynomial operator-(const polynomial& lhs, const polynomial& rhs);

@@ -2,6 +2,9 @@
 #include <iostream>
 #include <algorithm>
 #include <map>
+#include <unordered_map>
+#include <future>
+#include <thread>
 
 polynomial::polynomial() {
     terms.emplace_back(0, 0);
@@ -39,17 +42,10 @@ size_t polynomial::find_degree_of() const {
 
 std::vector<std::pair<power, coeff>> polynomial::canonical_form() const {
 
-    if (terms.empty() || (terms.size() == 1 && terms[0].second == 0)) {
-        return {{0, 0}};
-    }
-
-    std::vector<std::pair<power, coeff>> cleaned_terms;
-    for (const auto& term : terms) {
-        if (term.second != 0) {
-            cleaned_terms.push_back(term);
-        }
-    }
-
+    std::vector<std::pair<power, coeff>> cleaned_terms(terms.begin(), terms.end());
+    std::sort(cleaned_terms.begin(), cleaned_terms.end(),  {
+        return a.first > b.first;
+    });
     return cleaned_terms;
 }
 
@@ -87,20 +83,49 @@ polynomial operator+(int lhs, const polynomial& rhs) {
 
 // Multiplication of two polynomials
 polynomial operator*(const polynomial& lhs, const polynomial& rhs) {
-    polynomial result;
-    std::map<power, coeff> product_terms;
-    for (const auto& lterm : lhs.get_terms()) {
-        for (const auto& rterm : rhs.get_terms()) {
-            power combined_power = lterm.first + rterm.first;
-            coeff combined_coeff = lterm.second * rterm.second;
-            product_terms[combined_power] += combined_coeff;
-        }
+    // polynomial result;
+    // std::map<power, coeff> product_terms;
+    // for (const auto& lterm : lhs.get_terms()) {
+    //     for (const auto& rterm : rhs.get_terms()) {
+    //         power combined_power = lterm.first + rterm.first;
+    //         coeff combined_coeff = lterm.second * rterm.second;
+    //         product_terms[combined_power] += combined_coeff;
+    //     }
+    // }
+    // for (const auto& term : product_terms) {
+    //     if (term.second != 0) {
+    //         result.add_term(term.first, term.second);
+    //     }
+    // }
+    // return result;
+
+    std::unordered_map<power,coeff> product_terms;
+    std::vector<std::future<void>> futures;
+    std::mutex mtx;
+
+    for (const auto& lterm : lhs.terms) {
+        futures.push_back(std::async(std::launch::async, & {
+            for (const auto& rterm : rhs.terms) {
+                power combined_power = lterm.first + rterm.first;
+                coeff combined_coeff = lterm.second * rterm.second;
+                mtx.lock();
+                product_terms[combined_power] += combined_coeff;  // Need to synchronize this
+                mtx.unlock();
+            }
+        }));
     }
+
+    for (auto& future : futures) {
+        future.wait();
+    }
+
+    polynomial result;
     for (const auto& term : product_terms) {
         if (term.second != 0) {
             result.add_term(term.first, term.second);
         }
     }
+
     return result;
 }
 
@@ -175,24 +200,19 @@ polynomial operator-(int lhs, const polynomial& rhs) {
 
 
 
-const std::vector<std::pair<power, coeff>>& polynomial::get_terms() const {
-    return terms;
+std::vector<std::pair<power, coeff>> polynomial::get_terms() const {
+    std::vector<std::pair<power, coeff>> sorted_terms(terms.begin(), terms.end());
+    std::sort(sorted_terms.begin(), sorted_terms.end(),  {
+        return a.first > b.first;
+    });
+    return sorted_terms;
 }
 
 
 void polynomial::add_term(power pwr, coeff cff) {
-    auto it = std::find_if(terms.begin(), terms.end(), [pwr](const std::pair<power, coeff>& term) { return term.first == pwr; });
-
-    if (it != terms.end()) {
-        it->second += cff;
-        if (it->second == 0) {
-            terms.erase(it);
-        }
-    } else {
-        terms.emplace_back(pwr, cff);
-        std::sort(terms.begin(), terms.end(), [](const std::pair<power, coeff>& a, const std::pair<power, coeff>& b) {
-            return a.first > b.first;
-        });
+    terms[pwr] += cff;
+    if (terms[pwr]==0) {
+        terms.erase(pwr);
     }
 }
 

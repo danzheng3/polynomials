@@ -1,37 +1,52 @@
 #include <iostream>
+#include <chrono>
+#include <optional>
+#include <vector>
+
 #include "poly.h"
 
-int main() {
-    // Create polynomials
-    polynomial p1({{2, 3}, {1, 2}, {0, 1}}); // 3x^2 + 2x + 1
-    polynomial p2({{3, 1}, {1, -2}, {0, 3}}); // x^3 - 2x + 3
-    
-    // Print polynomials
-    std::cout << "p1: ";
-    p1.print();
-    std::cout << "p2: ";
-    p2.print();
+std::optional<double> poly_test(polynomial& p1,
+                                polynomial& p2,
+                                std::vector<std::pair<power, coeff>> solution)
 
-    // Addition
-    polynomial sum = p1 + p2;
-    std::cout << "p1 + p2: ";
-    sum.print();
+{
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-    // Multiplication
-    polynomial product = p1 * p2;
-    std::cout << "p1 * p2: ";
-    product.print();
+    polynomial p3 = p1 * p2;
 
-    // Degree
-    std::cout << "Degree of p1: " << p1.find_degree_of() << std::endl;
+    auto p3_can_form = p3.canonical_form();
 
-    // Canonical form
-    std::vector<std::pair<power, coeff>> p1_canonical = p1.canonical_form();
-    std::cout << "Canonical form of p1: ";
-    for (const auto& term : p1_canonical) {
-        std::cout << "(" << term.first << ", " << term.second << ") ";
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+
+    p3.print();
+
+    if (p3_can_form != solution)
+    {
+        return std::nullopt;
     }
-    std::cout << std::endl;
 
-    return 0;
+    return std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+}
+
+int main()
+{
+    /** We're doing (x+1)^2, so solution is x^2 + 2x + 1*/
+    std::vector<std::pair<power, coeff>> solution = {{2,1}, {1,2}, {0,1}};
+
+    /** This holds (x+1), which we'll pass to each polynomial */
+    std::vector<std::pair<power, coeff>> poly_input = {{1,1}, {0,1}};
+
+    polynomial p1(poly_input.begin(), poly_input.end());
+    polynomial p2(poly_input.begin(), poly_input.end());
+
+    std::optional<double> result = poly_test(p1, p2, solution);
+
+    if (result.has_value())
+    {
+        std::cout << "Passed test, took " << result.value()/1000 << " seconds" << std::endl;
+    } 
+    else 
+    {
+        std::cout << "Failed test" << std::endl;
+    }
 }
